@@ -32,8 +32,8 @@
     font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   }
   .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 48px; }
-  header h1 { margin: 8px 0 4px; font-size: 22px; }
-  header p { margin: 0 0 16px; color: var(--mute); font-size: 14px; }
+  header h1 { margin: 8px 0 16px; font-size: 22px; }
+  #fatal { white-space: pre-line; overflow-wrap: anywhere; }
 
   .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
   .card h2 { margin: 0 0 8px; font-size: 18px; }
@@ -110,7 +110,6 @@
 <div class="wrap">
   <header>
     <h1>Đặt xe công ty</h1>
-    <p>Chọn thời gian đi – về và loại xe, hệ thống báo kết quả ngay. Chuyến qua đêm hoặc nhiều ngày đều đặt được.</p>
   </header>
 
   <div id="loading" class="card"><span class="spin"></span>Đang tải dữ liệu…</div>
@@ -193,7 +192,7 @@
 // =====================================================================
 // CẤU HÌNH: dán link Web App của Apps Script (kết thúc bằng /exec) vào đây
 // =====================================================================
-var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkWheOa205zMqY3cbcKCrlullh7vsI8sETF46-Obs_6Q3/exec';
+var API_URL = 'DÁN_LINK_WEB_APP_APPS_SCRIPT_VÀO_ĐÂY';
 
 (function () {
   'use strict';
@@ -270,20 +269,42 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
 
   function refreshInit() {
     api(null).then(function (cfg) {
-      if (cfg.status !== 'OK') throw new Error(cfg.message || 'Không tải được dữ liệu.');
+      if (cfg.status !== 'OK') { var se = new Error(cfg.message || 'Không tải được dữ liệu.'); se.server = true; throw se; }
       store(CACHE_KEY, JSON.stringify(cfg));
       applyInit(cfg);
     }).catch(function (e) {
       if (st.ready) return;                         // đang dùng dữ liệu đã lưu thì không làm phiền người dùng
-      showFatal(e && e.notJson ? NOT_JSON_MSG : 'Không tải được dữ liệu: ' + (e && e.message ? e.message : e));
+      if (e && e.server) { showFatal('Không tải được dữ liệu: ' + e.message, true); return; }
+      if (e && e.notJson) { showFatal(NOT_JSON_MSG, true); return; }
+      diagnoseNetwork().then(function (msg) { showFatal(msg, true); });
     });
   }
 
-  function showFatal(msg) {
+  // "Failed to fetch": thử gọi lại kiểu no-cors để phân biệt
+  //  - gọi được nhưng không đọc được  -> Apps Script chưa mở quyền "Bất kỳ ai" (bị chuyển sang trang đăng nhập Google)
+  //  - không gọi được                 -> mạng / link sai / tiện ích chặn
+  function diagnoseNetwork() {
+    var info = '\nLink đang dùng: ' + API_URL;
+    var url = API_URL + (API_URL.indexOf('?') >= 0 ? '&' : '?') + 'action=init';
+    return fetch(url, { mode: 'no-cors' }).then(function () {
+      return 'Máy chủ có phản hồi nhưng trình duyệt chặn không cho đọc dữ liệu. Thường gặp nhất: Apps Script chưa triển khai với quyền truy cập "Bất kỳ ai" (không phải "Bất kỳ ai có Tài khoản Google"), hoặc đã đổi quyền nhưng chưa triển khai phiên bản mới.' + info;
+    }, function () {
+      return 'Không kết nối được tới link Apps Script. Kiểm tra: kết nối mạng; link trong API_URL phải có dạng https://script.google.com/macros/s/…/exec; thử tắt tiện ích chặn quảng cáo.' + info;
+    });
+  }
+
+  function showFatal(msg, retry) {
     $('loading').hidden = true;
     var b = $('fatal');
     b.hidden = false;
     b.textContent = msg;
+    if (retry) {
+      var btn = document.createElement('button');
+      btn.type = 'button'; btn.className = 'btn sec'; btn.textContent = 'Thử lại';
+      btn.style.cssText = 'display:block;margin-top:12px';
+      btn.addEventListener('click', function () { b.hidden = true; $('loading').hidden = false; refreshInit(); });
+      b.appendChild(btn);
+    }
   }
 
   function applyInit(cfg) {
