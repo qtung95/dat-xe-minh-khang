@@ -1,0 +1,549 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Đặt xe công ty</title>
+<style>
+  :root {
+    --bg: #f3f5f7; --card: #ffffff; --ink: #1c2630; --mute: #627084; --line: #d9e0e8;
+    --brand: #0f766e; --brand-ink: #ffffff; --brand-soft: #e3f3f1;
+    --ok: #146c43; --ok-bg: #e6f5ec;
+    --warn: #8a5300; --warn-bg: #fff3dc;
+    --err: #b42318; --err-bg: #fdecea;
+    --info: #1d4f91; --info-bg: #e8f0fb;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #0f151b; --card: #17202a; --ink: #e7ecf1; --mute: #92a1b3; --line: #2a3745;
+      --brand: #2dd4bf; --brand-ink: #04211d; --brand-soft: #12332f;
+      --ok: #6ee7a8; --ok-bg: #0f2e1f;
+      --warn: #fbbf4a; --warn-bg: #33260a;
+      --err: #ff8a80; --err-bg: #3a1613;
+      --info: #8ab8ff; --info-bg: #14263f;
+    }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; }
+  body {
+    background: var(--bg); color: var(--ink);
+    font: 16px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  }
+  .wrap { max-width: 640px; margin: 0 auto; padding: 16px 16px 48px; }
+  header h1 { margin: 8px 0 4px; font-size: 22px; }
+  header p { margin: 0 0 16px; color: var(--mute); font-size: 14px; }
+
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 16px; margin-bottom: 14px; }
+  .card h2 { margin: 0 0 8px; font-size: 18px; }
+  .card.ok { background: var(--ok-bg); border-color: transparent; }
+  .card.ok h2 { color: var(--ok); }
+  .card.warn { background: var(--warn-bg); border-color: transparent; }
+  .card.warn h2 { color: var(--warn); }
+  .card.err { background: var(--err-bg); border-color: transparent; color: var(--err); }
+  .card.info { background: var(--info-bg); border-color: transparent; }
+  .card.info h2 { color: var(--info); }
+
+  .field { margin-bottom: 16px; }
+  .field > label, .field > .lbl { display: block; font-weight: 600; font-size: 14px; margin-bottom: 6px; }
+  .opt-hint { font-weight: 400; color: var(--mute); }
+  input[type=text], input[type=date], input[type=time], input[type=number], select {
+    width: 100%; padding: 11px 12px; font: inherit; color: var(--ink);
+    background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+  }
+  select { appearance: auto; }
+  input:focus-visible, select:focus-visible, button:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+  .sub { color: var(--mute); font-size: 13px; margin-top: 4px; }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .when { margin: -4px 0 16px; padding: 10px 12px; border-radius: 10px; background: var(--brand-soft); font-size: 14px; }
+  .when.bad { background: var(--warn-bg); color: var(--warn); }
+
+  .choices { display: flex; flex-wrap: wrap; gap: 8px; }
+  .opt { position: relative; flex: 1 1 140px; min-width: 120px; cursor: pointer; }
+  .opt input { position: absolute; opacity: 0; inset: 0; width: 100%; height: 100%; cursor: pointer; margin: 0; }
+  .opt .box { display: block; padding: 10px 12px; border: 1.5px solid var(--line); border-radius: 10px; background: var(--card); height: 100%; }
+  .opt .box b { display: block; font-weight: 600; }
+  .opt.on .box { border-color: var(--brand); background: var(--brand-soft); }
+  .opt:focus-within .box { outline: 2px solid var(--brand); outline-offset: 2px; }
+
+  .stepper { display: flex; align-items: center; gap: 8px; }
+  .stepper input { text-align: center; width: 84px; }
+  .stepper button {
+    width: 44px; height: 44px; font-size: 22px; line-height: 1; border-radius: 10px;
+    border: 1px solid var(--line); background: var(--card); color: var(--ink); cursor: pointer;
+  }
+
+  .btn {
+    display: inline-block; padding: 12px 18px; font: inherit; font-weight: 600; border-radius: 10px;
+    border: 1px solid var(--brand); background: var(--brand); color: var(--brand-ink); cursor: pointer;
+  }
+  .btn.sec { background: transparent; color: var(--ink); border-color: var(--line); }
+  .btn.block { width: 100%; padding: 14px; font-size: 17px; }
+  .btn[disabled] { opacity: .55; cursor: progress; }
+
+  .err-inline { color: var(--err); font-size: 14px; margin: 0 0 12px; }
+
+  dl.kv { display: grid; grid-template-columns: 110px 1fr; gap: 6px 12px; margin: 10px 0 14px; }
+  dl.kv dt { color: var(--mute); font-size: 14px; }
+  dl.kv dd { margin: 0; font-weight: 600; word-break: break-word; }
+
+  .reason { margin: 0 0 10px; }
+  .reason p { margin: 0 0 4px; font-weight: 600; }
+  .reason ul { margin: 0; padding-left: 18px; font-size: 14px; }
+  .chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .chip {
+    padding: 8px 12px; border-radius: 999px; border: 1px solid var(--brand); background: var(--card);
+    color: var(--ink); font: inherit; font-size: 14px; cursor: pointer; text-align: left;
+  }
+  .chip small { color: var(--mute); margin-left: 4px; }
+  .trip { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px; margin: 10px 0; }
+  .trip .who { font-weight: 600; }
+  .trip .meta { color: var(--mute); font-size: 13.5px; margin: 4px 0 10px; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  #hint { font-size: 14px; color: var(--info); margin: 10px 0 0; min-height: 1.2em; }
+  .spin { display: inline-block; width: 14px; height: 14px; border: 2px solid currentColor; border-right-color: transparent; border-radius: 50%; animation: sp .7s linear infinite; vertical-align: -2px; margin-right: 6px; }
+  @keyframes sp { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Đặt xe công ty</h1>
+    <p>Chọn thời gian đi – về và loại xe, hệ thống báo kết quả ngay. Chuyến qua đêm hoặc nhiều ngày đều đặt được.</p>
+  </header>
+
+  <div id="loading" class="card"><span class="spin"></span>Đang tải dữ liệu…</div>
+  <div id="fatal" class="card err" hidden></div>
+  <div id="result" aria-live="polite"></div>
+
+  <form id="form" class="card" hidden novalidate>
+    <div class="field">
+      <label for="name">Họ tên</label>
+      <input type="text" id="name" maxlength="80" autocomplete="name" placeholder="Nguyễn Văn A">
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="startDate">Ngày đi</label>
+        <input type="date" id="startDate">
+        <div class="sub" id="startLabel"></div>
+      </div>
+      <div class="field">
+        <label for="startTime">Giờ đi</label>
+        <input type="time" id="startTime" step="900">
+      </div>
+    </div>
+
+    <div class="row2">
+      <div class="field">
+        <label for="endDate">Ngày về</label>
+        <input type="date" id="endDate">
+        <div class="sub" id="endLabel"></div>
+      </div>
+      <div class="field">
+        <label for="endTime">Giờ về</label>
+        <input type="time" id="endTime" step="900">
+      </div>
+    </div>
+    <div class="when" id="when" hidden></div>
+
+    <div class="field">
+      <label for="type">Loại xe</label>
+      <select id="type"></select>
+      <div class="sub" id="typeNote"></div>
+    </div>
+
+    <div class="field">
+      <span class="lbl">Tài xế</span>
+      <div class="choices" id="driver" role="radiogroup" aria-label="Tài xế"></div>
+    </div>
+
+    <div class="field">
+      <label for="people">Số người đi (tính cả bạn)</label>
+      <div class="stepper">
+        <button type="button" id="minus" aria-label="Giảm">−</button>
+        <input type="number" id="people" min="1" max="50" value="1" inputmode="numeric">
+        <button type="button" id="plus" aria-label="Tăng">+</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label for="dest">Điểm đến / nội dung chuyến đi</label>
+      <input type="text" id="dest" maxlength="200" placeholder="Ví dụ: Khách hàng tại Hải Phòng">
+    </div>
+
+    <div class="field">
+      <label for="note">Ghi chú <span class="opt-hint">(không bắt buộc)</span></label>
+      <input type="text" id="note" maxlength="300">
+    </div>
+
+    <div class="field" id="codeField" hidden>
+      <label for="code">Mã truy cập <span class="opt-hint">(hỏi admin)</span></label>
+      <input type="text" id="code" autocomplete="off">
+    </div>
+
+    <p class="err-inline" id="formErr" hidden></p>
+    <button type="submit" class="btn block" id="submitBtn">Đặt xe</button>
+    <p id="hint"></p>
+  </form>
+</div>
+
+<script>
+// =====================================================================
+// CẤU HÌNH: dán link Web App của Apps Script (kết thúc bằng /exec) vào đây
+// =====================================================================
+var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkWheOa205zMqY3cbcKCrlullh7vsI8sETF46-Obs_6Q3/exec';
+
+(function () {
+  'use strict';
+
+  var $ = function (id) { return document.getElementById(id); };
+  var DAYS = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+  var st = { cfg: null, needDriver: true, busy: false, last: null, alts: [], endTouched: false, ready: false };
+  var CACHE_KEY = 'dx_init_v1';
+
+  function esc(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
+      return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+    });
+  }
+  function fmtDate(s) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s || '');
+    if (!m) return '';
+    var d = new Date(+m[1], +m[2] - 1, +m[3]);
+    return DAYS[d.getDay()] + ', ' + m[3] + '/' + m[2] + '/' + m[1];
+  }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+  function load(k) { try { return localStorage.getItem(k) || ''; } catch (e) { return ''; } }
+  function unstore(k) { try { localStorage.removeItem(k); } catch (e) {} }
+
+  // ---------- Gọi API Apps Script ----------
+  // POST không đặt Content-Type để trình duyệt gửi text/plain -> không bị chặn CORS (không cần preflight).
+  function api(body) {
+    var ctrl = (typeof AbortController !== 'undefined') ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, 40000);
+    var opts = ctrl ? { signal: ctrl.signal } : {};
+    var url = API_URL;
+    if (body) { opts.method = 'POST'; opts.body = JSON.stringify(body); }
+    else { url += (url.indexOf('?') >= 0 ? '&' : '?') + 'action=init'; }
+    return fetch(url, opts).then(function (res) { return res.text(); }).then(function (text) {
+      clearTimeout(timer);
+      try { return JSON.parse(text); }
+      catch (e) { var err = new Error('NOT_JSON'); err.notJson = true; throw err; }
+    }, function (e) { clearTimeout(timer); throw e; });
+  }
+  var NOT_JSON_MSG = 'Không kết nối được tới máy chủ đặt xe. Admin kiểm tra giúp: Apps Script phải triển khai ở chế độ "Bất kỳ ai" và link trong index.html phải là link /exec.';
+
+  // ---------- Nhóm lựa chọn dạng thẻ (Tài xế) ----------
+  function refreshOn(el) {
+    Array.prototype.forEach.call(el.children, function (c) { c.classList.toggle('on', c.querySelector('input').checked); });
+  }
+  function renderChoices(el, name, items, selected, onPick) {
+    el.innerHTML = '';
+    items.forEach(function (it) {
+      var lab = document.createElement('label'); lab.className = 'opt';
+      var inp = document.createElement('input');
+      inp.type = 'radio'; inp.name = name; inp.value = it.value; inp.checked = (it.value === selected);
+      var box = document.createElement('span'); box.className = 'box';
+      var b = document.createElement('b'); b.textContent = it.label; box.appendChild(b);
+      lab.appendChild(inp); lab.appendChild(box);
+      inp.addEventListener('change', function () { refreshOn(el); onPick(it.value); });
+      el.appendChild(lab);
+    });
+    refreshOn(el);
+  }
+  function setChoice(el, value) {
+    Array.prototype.forEach.call(el.querySelectorAll('input'), function (i) { i.checked = (i.value === value); });
+    refreshOn(el);
+  }
+
+  // ---------- Khởi tạo: hiện form ngay từ dữ liệu đã lưu, rồi cập nhật ngầm ----------
+  if (!API_URL || API_URL.indexOf('DÁN_') === 0) {
+    showFatal('Chưa cấu hình: hãy dán link Web App của Apps Script vào biến API_URL ở đầu file index.html.');
+  } else {
+    var cached = null;
+    try { cached = JSON.parse(load(CACHE_KEY) || 'null'); } catch (e) { cached = null; }
+    if (cached && cached.types) applyInit(cached);
+    refreshInit();
+  }
+
+  function refreshInit() {
+    api(null).then(function (cfg) {
+      if (cfg.status !== 'OK') throw new Error(cfg.message || 'Không tải được dữ liệu.');
+      store(CACHE_KEY, JSON.stringify(cfg));
+      applyInit(cfg);
+    }).catch(function (e) {
+      if (st.ready) return;                         // đang dùng dữ liệu đã lưu thì không làm phiền người dùng
+      showFatal(e && e.notJson ? NOT_JSON_MSG : 'Không tải được dữ liệu: ' + (e && e.message ? e.message : e));
+    });
+  }
+
+  function showFatal(msg) {
+    $('loading').hidden = true;
+    var b = $('fatal');
+    b.hidden = false;
+    b.textContent = msg;
+  }
+
+  function applyInit(cfg) {
+    var first = !st.ready;
+    st.cfg = cfg; st.ready = true;
+    $('loading').hidden = true; $('fatal').hidden = true;
+
+    // dropdown loại xe (giữ lựa chọn hiện tại nếu còn)
+    var sel = $('type'), cur = sel.value;
+    sel.innerHTML = '';
+    var ph = document.createElement('option'); ph.value = ''; ph.textContent = '— Chọn loại xe —'; sel.appendChild(ph);
+    cfg.types.forEach(function (t) {
+      var o = document.createElement('option');
+      o.value = t.name;
+      o.textContent = t.name + ' (' + t.maxSeats + ' chỗ' + (t.carpool ? ' · đi ghép được' : '') + ')';
+      sel.appendChild(o);
+    });
+    sel.value = cfg.types.some(function (t) { return t.name === cur; }) ? cur : '';
+    updateTypeNote();
+
+    ['startDate', 'endDate'].forEach(function (id) { $(id).min = cfg.today; $(id).max = cfg.maxDate; });
+    $('codeField').hidden = !cfg.needCode;
+    if (cfg.needCode && !$('code').value) $('code').value = load('dx_code');
+
+    if (first) {
+      $('name').value = load('dx_name');
+      $('startDate').value = cfg.today;
+      $('endDate').value = cfg.today;
+      renderChoices($('driver'), 'driver', [
+        { value: 'yes', label: 'Cần tài xế' },
+        { value: 'no', label: 'Tự lái' }
+      ], 'yes', function (v) { st.needDriver = (v === 'yes'); });
+      updateWhen();
+      $('form').hidden = false;
+    }
+  }
+
+  function updateTypeNote() {
+    var t = null, v = $('type').value;
+    if (st.cfg) st.cfg.types.forEach(function (x) { if (x.name === v) t = x; });
+    $('typeNote').textContent = (t && t.carpool)
+      ? 'Xe này có thể đi ghép: nếu đã có người đặt cùng thời gian, bạn sẽ thấy họ đi đâu để chọn ghép chung.' : '';
+  }
+  $('type').addEventListener('change', updateTypeNote);
+
+  // ---------- Ngày giờ ----------
+  function toMin(d, t) {
+    var m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(d || ''), n = /^(\d{1,2}):(\d{2})/.exec(t || '');
+    if (!m || !n) return NaN;
+    return Date.UTC(+m[1], +m[2] - 1, +m[3], +n[1], +n[2]) / 60000;
+  }
+  function span(mins) {
+    var d = Math.floor(mins / 1440), h = Math.floor((mins % 1440) / 60), mi = mins % 60, p = [];
+    if (d) p.push(d + ' ngày');
+    if (h) p.push(h + ' giờ');
+    if (mi && !d) p.push(mi + ' phút');
+    return p.join(' ') || '0 phút';
+  }
+  function updateWhen() {
+    $('startLabel').textContent = fmtDate($('startDate').value);
+    $('endLabel').textContent = fmtDate($('endDate').value);
+    var box = $('when');
+    var s = toMin($('startDate').value, $('startTime').value), e = toMin($('endDate').value, $('endTime').value);
+    if (isNaN(s) || isNaN(e)) { box.hidden = true; return; }
+    box.hidden = false;
+    if (e <= s) { box.className = 'when bad'; box.textContent = 'Thời điểm về phải sau thời điểm đi.'; return; }
+    var over = ($('startDate').value !== $('endDate').value);
+    box.className = 'when';
+    box.textContent = 'Thời gian dùng xe: ' + span(e - s) + (over ? ' (qua đêm / nhiều ngày)' : '');
+  }
+  $('startDate').addEventListener('change', function () {
+    var s = $('startDate').value;
+    if (!st.endTouched || $('endDate').value < s) { $('endDate').value = s; st.endTouched = false; }
+    $('endDate').min = s || (st.cfg && st.cfg.today) || '';
+    updateWhen();
+  });
+  $('endDate').addEventListener('change', function () { st.endTouched = true; updateWhen(); });
+  $('startTime').addEventListener('input', updateWhen);
+  $('endTime').addEventListener('input', updateWhen);
+
+  $('minus').addEventListener('click', function () { stepPeople(-1); });
+  $('plus').addEventListener('click', function () { stepPeople(1); });
+  function stepPeople(n) {
+    var v = (parseInt($('people').value, 10) || 1) + n;
+    $('people').value = Math.min(50, Math.max(1, v));
+  }
+
+  // ---------- Gửi yêu cầu ----------
+  $('form').addEventListener('submit', function (e) { e.preventDefault(); send('auto'); });
+
+  function collect() {
+    return {
+      name: $('name').value, startDate: $('startDate').value, startTime: $('startTime').value,
+      endDate: $('endDate').value, endTime: $('endTime').value, type: $('type').value,
+      needDriver: st.needDriver, people: parseInt($('people').value, 10) || 0,
+      dest: $('dest').value, note: $('note').value
+    };
+  }
+  function clientError(p) {
+    if (!p.name.trim()) return 'Vui lòng nhập họ tên.';
+    if (!p.startDate || !p.startTime) return 'Vui lòng chọn ngày và giờ đi.';
+    if (!p.endDate || !p.endTime) return 'Vui lòng chọn ngày và giờ về.';
+    if (toMin(p.endDate, p.endTime) <= toMin(p.startDate, p.startTime)) return 'Thời điểm về phải sau thời điểm đi.';
+    if (!p.type) return 'Vui lòng chọn loại xe.';
+    if (!(p.people >= 1)) return 'Số người đi phải từ 1 trở lên.';
+    if (!p.dest.trim()) return 'Vui lòng nhập điểm đến / nội dung chuyến đi.';
+    if (st.cfg && st.cfg.needCode && !$('code').value.trim()) return 'Vui lòng nhập mã truy cập (hỏi admin).';
+    return '';
+  }
+  function showFormErr(msg) { var el = $('formErr'); el.textContent = msg; el.hidden = !msg; }
+
+  function send(mode, joinId) {
+    if (st.busy) return;
+    var p;
+    if (mode === 'auto') {
+      p = collect();
+      var err = clientError(p);
+      showFormErr(err);
+      if (err) return;
+      st.last = JSON.parse(JSON.stringify(p));
+      store('dx_name', p.name.trim());
+    } else {
+      p = JSON.parse(JSON.stringify(st.last));   // "Đi ghép" / "Đặt xe riêng" dùng đúng yêu cầu vừa kiểm tra
+    }
+    p.mode = mode;
+    if (joinId) p.joinId = joinId;
+    if (st.cfg && st.cfg.needCode) p.code = $('code').value.trim();
+    setBusy(true);
+    api(p).then(function (r) {
+      setBusy(false);
+      if (r.badCode) { unstore('dx_code'); $('codeField').hidden = false; }
+      else if (p.code) store('dx_code', p.code);
+      showResult(r);
+    }).catch(function (e) {
+      setBusy(false);
+      showResult({
+        status: 'ERROR',
+        message: e && e.notJson ? NOT_JSON_MSG :
+          'Không nhận được phản hồi từ máy chủ. Lượt đặt có thể đã được ghi — hãy hỏi admin kiểm tra trước khi đặt lại để tránh đặt trùng.'
+      });
+    });
+  }
+
+  function setBusy(b) {
+    st.busy = b;
+    var btn = $('submitBtn');
+    btn.disabled = b;
+    btn.innerHTML = b ? '<span class="spin"></span>Đang kiểm tra…' : 'Đặt xe';
+    Array.prototype.forEach.call(document.querySelectorAll('#result button'), function (x) { x.disabled = b; });
+  }
+
+  // ---------- Hiển thị kết quả ----------
+  function kv(rows) {
+    return '<dl class="kv">' + rows.map(function (r) {
+      return '<dt>' + esc(r[0]) + '</dt><dd>' + esc(r[1]) + '</dd>';
+    }).join('') + '</dl>';
+  }
+  function reasonsHtml(reasons) {
+    return (reasons || []).map(function (r) {
+      var d = (r.details && r.details.length)
+        ? '<ul>' + r.details.map(function (x) { return '<li>' + esc(x) + '</li>'; }).join('') + '</ul>' : '';
+      return '<div class="reason"><p>' + esc(r.text) + '</p>' + d + '</div>';
+    }).join('');
+  }
+  function noticeHtml(n) { return n ? '<p class="sub" style="margin:0 0 8px">' + esc(n) + '</p>' : ''; }
+
+  function showResult(r) {
+    var box = $('result');
+    var html = '';
+    if (r.status === 'OK') {
+      var b = r.book;
+      html = '<div class="card ok"><h2>Đặt xe thành công</h2>' + kv([
+        ['Mã đặt', b.id], ['Thời gian', b.when],
+        ['Xe', b.type + ' — ' + b.plate],
+        ['Tài xế', b.needDriver ? b.driver : 'Tự lái'],
+        ['Điểm đến', b.dest], ['Số người', b.people]
+      ]) + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
+      $('form').hidden = true;
+    } else if (r.status === 'JOINED') {
+      var j = r.book, w = r['with'];
+      html = '<div class="card ok"><h2>Đã đăng ký đi ghép</h2>' + kv([
+        ['Mã đặt', j.id], ['Thời gian', j.when],
+        ['Đi cùng', w.name + ' (đi ' + w.dest + ')'],
+        ['Xe', j.type + ' — ' + j.plate],
+        ['Tài xế', w.driver || 'Tự lái'],
+        ['Điểm đến của bạn', j.dest], ['Số người', j.people]
+      ]) + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
+      $('form').hidden = true;
+    } else if (r.status === 'CARPOOL_OFFER') {
+      html = '<div class="card info"><h2>Đã có người đặt xe này — bạn có thể đi ghép</h2>' + noticeHtml(r.notice) +
+        (r.options || []).map(function (o) {
+          var onboard = o.people + (o.others ? o.others.length : 0);
+          var meta = [o.when, 'Xe ' + o.plate, o.driver ? 'Tài xế: ' + o.driver : 'Tự lái',
+                      'đã có ' + onboard + '+ người', 'còn ' + o.seatsLeft + ' chỗ'];
+          var others = (o.others && o.others.length) ? '<br>Đã ghép: ' + esc(o.others.join(', ')) : '';
+          return '<div class="trip"><div class="who">' + esc(o.name) + ' đi ' + esc(o.dest) + '</div>' +
+                 '<div class="meta">' + esc(meta.join(' · ')) + others + '</div>' +
+                 '<button type="button" class="btn" data-act="join" data-id="' + esc(o.id) + '">Đi ghép chuyến này</button></div>';
+        }).join('');
+      if (r.canBookNew) {
+        html += '<div class="actions"><button type="button" class="btn sec" data-act="new">Không ghép — đặt xe riêng</button></div>';
+      } else {
+        html += '<p class="sub">Không thể đặt xe riêng lúc này:</p><div style="font-size:14px">' + reasonsHtml(r.reasons) + '</div>';
+      }
+      html += '<p class="sub">Hoặc đổi thời gian / loại xe ở biểu mẫu bên dưới rồi bấm Đặt xe.</p></div>';
+      $('form').hidden = false;
+    } else if (r.status === 'CONFLICT') {
+      html = '<div class="card warn"><h2>Chưa đặt được — vui lòng chọn lại</h2>' + noticeHtml(r.notice) + reasonsHtml(r.reasons);
+      if (r.alternatives && r.alternatives.length) {
+        html += '<p class="sub" style="margin-top:10px">Bạn có thể chọn:</p><div class="chips">' +
+          r.alternatives.map(function (a, i) {
+            return '<button type="button" class="chip" data-act="alt" data-i="' + i + '">' + esc(a.label) +
+                   '<small>' + esc(a.hint) + '</small></button>';
+          }).join('') + '</div>';
+      }
+      html += '</div>';
+      st.alts = r.alternatives || [];
+      $('form').hidden = false;
+    } else {
+      html = '<div class="card err"><strong>Không thực hiện được.</strong> ' + esc(r.message || 'Đã có lỗi xảy ra.') + '</div>';
+      $('form').hidden = false;
+    }
+    box.innerHTML = html;
+    $('hint').textContent = '';
+    box.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  // ---------- Thao tác trên kết quả ----------
+  $('result').addEventListener('click', function (e) {
+    var t = e.target.closest('[data-act]');
+    if (!t || st.busy) return;
+    var act = t.getAttribute('data-act');
+    if (act === 'join') send('join', t.getAttribute('data-id'));
+    else if (act === 'new') send('new');
+    else if (act === 'alt') applyAlt(st.alts[+t.getAttribute('data-i')]);
+    else if (act === 'again') resetForm();
+  });
+
+  function applyAlt(a) {
+    if (!a) return;
+    var p = a.patch || {};
+    if (p.startDate) { $('startDate').value = p.startDate; }
+    if (p.startTime) { $('startTime').value = p.startTime; }
+    if (p.endDate) { $('endDate').value = p.endDate; st.endTouched = true; }
+    if (p.endTime) { $('endTime').value = p.endTime; }
+    if (p.type) { $('type').value = p.type; updateTypeNote(); }
+    if (p.needDriver !== undefined) { st.needDriver = !!p.needDriver; setChoice($('driver'), p.needDriver ? 'yes' : 'no'); }
+    updateWhen();
+    $('hint').textContent = 'Đã chọn: ' + a.label + '. Bấm "Đặt xe" để kiểm tra lại.';
+    $('form').scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+
+  function resetForm() {
+    $('result').innerHTML = '';
+    $('dest').value = ''; $('note').value = ''; $('people').value = 1;
+    $('form').hidden = false;
+    showFormErr('');
+    window.scrollTo(0, 0);
+  }
+})();
+</script>
+</body>
+</html>
