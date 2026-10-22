@@ -319,7 +319,9 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
     cfg.types.forEach(function (t) {
       var o = document.createElement('option');
       o.value = t.name;
-      o.textContent = t.name + ' (' + t.maxSeats + ' chỗ' + (t.carpool ? ' · đi ghép được' : '') + ')';
+      // Tên loại xe đã có số chỗ ("Xe 7 chỗ") thì không ghi lặp lại số chỗ
+      var hasSeats = /\d+\s*(chỗ|cho|seat)/i.test(t.name);
+      o.textContent = t.name + (hasSeats ? '' : ' (' + t.maxSeats + ' chỗ)') + (t.carpool ? ' · đi ghép được' : '');
       sel.appendChild(o);
     });
     sel.value = cfg.types.some(function (t) { return t.name === cur; }) ? cur : '';
