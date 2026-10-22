@@ -117,9 +117,15 @@
   <div id="result" aria-live="polite"></div>
 
   <form id="form" class="card" hidden novalidate>
+    <div class="field" id="codeField" hidden>
+      <label for="code">Mã truy cập <span class="opt-hint">(hỏi admin)</span></label>
+      <input type="text" id="code" autocomplete="off">
+    </div>
+
     <div class="field">
       <label for="name">Họ tên</label>
-      <input type="text" id="name" maxlength="80" autocomplete="name" placeholder="Nguyễn Văn A">
+      <input type="text" id="name" maxlength="80" list="nameList" autocomplete="off" placeholder="Nguyễn Văn A">
+      <datalist id="nameList"></datalist>
     </div>
 
     <div class="row2">
@@ -177,11 +183,6 @@
       <input type="text" id="note" maxlength="300">
     </div>
 
-    <div class="field" id="codeField" hidden>
-      <label for="code">Mã truy cập <span class="opt-hint">(hỏi admin)</span></label>
-      <input type="text" id="code" autocomplete="off">
-    </div>
-
     <p class="err-inline" id="formErr" hidden></p>
     <button type="submit" class="btn block" id="submitBtn">Đặt xe</button>
     <p id="hint"></p>
@@ -200,7 +201,7 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
   var $ = function (id) { return document.getElementById(id); };
   var DAYS = ['Chủ nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
   var st = { cfg: null, needDriver: true, busy: false, last: null, alts: [], endTouched: false, ready: false };
-  var CACHE_KEY = 'dx_init_v1';
+  var CACHE_KEY = 'dx_init_v2';
 
   function esc(s) {
     return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
@@ -268,9 +269,15 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
   }
 
   function refreshInit() {
+    var code = ($('code').value || '').trim() || load('dx_code');
     api(null).then(function (cfg) {
+      // Cần mã truy cập: gửi mã bằng POST (không để mã trên đường dẫn) để nhận danh sách nhân viên
+      if (cfg.status === 'OK' && cfg.needCode && !cfg.codeOk && code) return api({ action: 'init', code: code });
+      return cfg;
+    }).then(function (cfg) {
       if (cfg.status !== 'OK') { var se = new Error(cfg.message || 'Không tải được dữ liệu.'); se.server = true; throw se; }
       store(CACHE_KEY, JSON.stringify(cfg));
+      if (cfg.needCode && cfg.codeOk && code) store('dx_code', code);
       applyInit(cfg);
     }).catch(function (e) {
       if (st.ready) return;                         // đang dùng dữ liệu đã lưu thì không làm phiền người dùng
@@ -312,20 +319,27 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
     st.cfg = cfg; st.ready = true;
     $('loading').hidden = true; $('fatal').hidden = true;
 
-    // dropdown loại xe (giữ lựa chọn hiện tại nếu còn)
+    // dropdown loại xe = đúng các xe trong danh mục Google Sheet (giữ lựa chọn hiện tại nếu còn)
     var sel = $('type'), cur = sel.value;
     sel.innerHTML = '';
     var ph = document.createElement('option'); ph.value = ''; ph.textContent = '— Chọn loại xe —'; sel.appendChild(ph);
     cfg.types.forEach(function (t) {
       var o = document.createElement('option');
       o.value = t.name;
-      // Tên loại xe đã có số chỗ ("Xe 7 chỗ") thì không ghi lặp lại số chỗ
-      var hasSeats = /\d+\s*(chỗ|cho|seat)/i.test(t.name);
-      o.textContent = t.name + (hasSeats ? '' : ' (' + t.maxSeats + ' chỗ)') + (t.carpool ? ' · đi ghép được' : '');
+      o.textContent = t.name;
       sel.appendChild(o);
     });
     sel.value = cfg.types.some(function (t) { return t.name === cur; }) ? cur : '';
     updateTypeNote();
+
+    // danh sách gợi ý họ tên lấy từ danh mục nhân viên (chưa có danh mục -> nhập tự do)
+    var dl = $('nameList'), nm = $('name');
+    dl.innerHTML = '';
+    (cfg.employees || []).forEach(function (n) {
+      var o = document.createElement('option'); o.value = n; dl.appendChild(o);
+    });
+    nm.placeholder = (cfg.employees && cfg.employees.length) ? 'Chọn hoặc gõ tên của bạn'
+      : (cfg.locked ? 'Nhập mã truy cập ở trên để hiện danh sách tên' : 'Nguyễn Văn A');
 
     ['startDate', 'endDate'].forEach(function (id) { $(id).min = cfg.today; $(id).max = cfg.maxDate; });
     $('codeField').hidden = !cfg.needCode;
@@ -347,10 +361,30 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
   function updateTypeNote() {
     var t = null, v = $('type').value;
     if (st.cfg) st.cfg.types.forEach(function (x) { if (x.name === v) t = x; });
-    $('typeNote').textContent = (t && t.carpool)
-      ? 'Xe này có thể đi ghép: nếu đã có người đặt cùng thời gian, bạn sẽ thấy họ đi đâu để chọn ghép chung.' : '';
+    var note = '';
+    if (t) {
+      note = t.cat || '';
+      if (t.carpool) note += (note ? ' · ' : '') + 'có thể đi ghép: nếu đã có người đặt cùng thời gian, bạn sẽ thấy họ đi đâu để chọn ghép chung';
+    }
+    $('typeNote').textContent = note;
   }
   $('type').addEventListener('change', updateTypeNote);
+  $('code').addEventListener('change', function () { if (st.ready && st.cfg && st.cfg.needCode) refreshInit(); });
+
+  // ---------- Họ tên: so khớp với danh sách nhân viên (không phân biệt hoa thường / dấu) ----------
+  function nkey(s) {
+    return String(s == null ? '' : s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/đ/gi, 'd')
+      .toLowerCase().replace(/\s+/g, ' ').trim();
+  }
+  // null = không có danh sách để kiểm tra | {ok:false} = không có trong danh sách | {ok:true, label?}
+  function matchEmployee(text) {
+    var emps = st.cfg && st.cfg.employees;
+    if (!emps || !emps.length) return null;
+    var k = nkey(text), exact = emps.filter(function (e) { return nkey(e) === k; });
+    if (exact.length === 1) return { ok: true, label: exact[0] };
+    var byName = emps.filter(function (e) { return nkey(e.replace(/\s*\([^)]*\)\s*$/, '')) === k; });
+    return byName.length ? { ok: true } : { ok: false };       // trùng tên: để máy chủ báo
+  }
 
   // ---------- Ngày giờ ----------
   function toMin(d, t) {
@@ -406,7 +440,9 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
     };
   }
   function clientError(p) {
-    if (!p.name.trim()) return 'Vui lòng nhập họ tên.';
+    if (!p.name.trim()) return 'Vui lòng chọn họ tên.';
+    var mt = matchEmployee(p.name);
+    if (mt && !mt.ok) return 'Không tìm thấy tên này trong danh sách nhân viên. Hãy gõ vài chữ rồi chọn tên trong danh sách gợi ý.';
     if (!p.startDate || !p.startTime) return 'Vui lòng chọn ngày và giờ đi.';
     if (!p.endDate || !p.endTime) return 'Vui lòng chọn ngày và giờ về.';
     if (toMin(p.endDate, p.endTime) <= toMin(p.startDate, p.startTime)) return 'Thời điểm về phải sau thời điểm đi.';
@@ -423,6 +459,8 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
     var p;
     if (mode === 'auto') {
       p = collect();
+      var mm = matchEmployee(p.name);
+      if (mm && mm.label) { p.name = mm.label; $('name').value = mm.label; }
       var err = clientError(p);
       showFormErr(err);
       if (err) return;
@@ -473,33 +511,35 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
   }
   function noticeHtml(n) { return n ? '<p class="sub" style="margin:0 0 8px">' + esc(n) + '</p>' : ''; }
 
+  var PENDING_NOTE = '<p class="sub" style="margin:0 0 12px">Xe đã được giữ chỗ cho bạn. Khi admin duyệt, bạn sẽ nhận email xác nhận.</p>';
+
   function showResult(r) {
     var box = $('result');
     var html = '';
     if (r.status === 'OK') {
       var b = r.book;
-      html = '<div class="card ok"><h2>Đặt xe thành công</h2>' + kv([
+      html = '<div class="card ok"><h2>Đã gửi đặt xe — chờ admin duyệt</h2>' + kv([
         ['Mã đặt', b.id], ['Thời gian', b.when],
-        ['Xe', b.type + ' — ' + b.plate],
+        ['Xe', b.plate + (b.type && b.type !== b.plate ? ' (' + b.type + ')' : '')],
         ['Tài xế', b.needDriver ? b.driver : 'Tự lái'],
         ['Điểm đến', b.dest], ['Số người', b.people]
-      ]) + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
+      ]) + PENDING_NOTE + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
       $('form').hidden = true;
     } else if (r.status === 'JOINED') {
       var j = r.book, w = r['with'];
-      html = '<div class="card ok"><h2>Đã đăng ký đi ghép</h2>' + kv([
+      html = '<div class="card ok"><h2>Đã đăng ký đi ghép — chờ admin duyệt</h2>' + kv([
         ['Mã đặt', j.id], ['Thời gian', j.when],
         ['Đi cùng', w.name + ' (đi ' + w.dest + ')'],
-        ['Xe', j.type + ' — ' + j.plate],
+        ['Xe', j.plate + (j.type && j.type !== j.plate ? ' (' + j.type + ')' : '')],
         ['Tài xế', w.driver || 'Tự lái'],
         ['Điểm đến của bạn', j.dest], ['Số người', j.people]
-      ]) + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
+      ]) + PENDING_NOTE + '<button type="button" class="btn" data-act="again">Đặt chuyến khác</button></div>';
       $('form').hidden = true;
     } else if (r.status === 'CARPOOL_OFFER') {
-      html = '<div class="card info"><h2>Đã có người đặt xe này — bạn có thể đi ghép</h2>' + noticeHtml(r.notice) +
+      html = '<div class="card info"><h2>Xe này đã có người đặt — bạn có thể đi ghép</h2>' + noticeHtml(r.notice) +
         (r.options || []).map(function (o) {
           var onboard = o.people + (o.others ? o.others.length : 0);
-          var meta = [o.when, 'Xe ' + o.plate, o.driver ? 'Tài xế: ' + o.driver : 'Tự lái',
+          var meta = [o.when, o.plate, o.driver ? 'Tài xế: ' + o.driver : 'Tự lái',
                       'đã có ' + onboard + '+ người', 'còn ' + o.seatsLeft + ' chỗ'];
           var others = (o.others && o.others.length) ? '<br>Đã ghép: ' + esc(o.others.join(', ')) : '';
           return '<div class="trip"><div class="who">' + esc(o.name) + ' đi ' + esc(o.dest) + '</div>' +
@@ -511,7 +551,7 @@ var API_URL = 'https://script.google.com/macros/s/AKfycbw0IZ610ALS1UuyBY5TD7DSkW
       } else {
         html += '<p class="sub">Không thể đặt xe riêng lúc này:</p><div style="font-size:14px">' + reasonsHtml(r.reasons) + '</div>';
       }
-      html += '<p class="sub">Hoặc đổi thời gian / loại xe ở biểu mẫu bên dưới rồi bấm Đặt xe.</p></div>';
+      html += '<p class="sub">Hoặc đổi thời gian / xe ở biểu mẫu bên dưới rồi bấm Đặt xe.</p></div>';
       $('form').hidden = false;
     } else if (r.status === 'CONFLICT') {
       html = '<div class="card warn"><h2>Chưa đặt được — vui lòng chọn lại</h2>' + noticeHtml(r.notice) + reasonsHtml(r.reasons);
